@@ -1,0 +1,60 @@
+name: Deploy to ECS Dev
+on:
+ push:
+   branches:
+     - main
+jobs:
+ deploy:
+   name: Deploy to ECS Dev
+   runs-on: ubuntu-latest
+   steps:
+     - name: Checkout
+       uses: actions/checkout@v2
+
+     - name: Configure AWS credentials
+       uses: aws-actions/configure-aws-credentials@v1
+       with:
+         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+         aws-region: us-east-2
+
+     - name: Login to Amazon ECR
+       id: login-ecr
+       uses: aws-actions/amazon-ecr-login@v1
+
+     - name: Docker build
+       env:
+         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+         ECR_REPOSITORY: purpose-finder-repository-dev
+         IMAGE_TAG: ${{ github.sha }}
+       run: |
+         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
+
+     - name: Push to ECR
+       env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: purpose-finder-repository-dev
+          IMAGE_TAG: ${{ github.sha }}
+       run: |
+         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+     - name: Download task def
+       id: download-task
+       run: |
+         aws ecs describe-task-definition --task-definition task-definition-dev --query taskDefinition > task-definition.json
+
+     - name: Render Amazon ECS task definition for container
+       id: render-container
+       uses: aws-actions/amazon-ecs-render-task-definition@v1
+       with:
+         task-definition: task-definition.json
+         container-name: api-container-dev
+         image: ${{ steps.login-ecr.outputs.registry }}/purpose-finder-repository-dev:${{ github.sha }}
+
+     - name: Deploy to Amazon ECS service
+       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+       with:
+         task-definition: ${{ steps.render-container.outputs.task-definition }}
+         service: service-dev
+         cluster: purpose-finder-cluster-dev
+         wait-for-service-stability: false
