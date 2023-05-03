@@ -51,6 +51,15 @@ app.get('/users', async (req, res) => {
   }
 });
 
+// GET Health
+app.get('/health', async (req, res) => {
+  try {res.sendStatus(200);
+  } catch (error) {
+    console.log(error.message);
+  }
+});
+
+
 // GET by ID
 app.get('/users/:id', async (req, res) => {
   try {
