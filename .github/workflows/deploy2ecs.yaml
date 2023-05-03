@@ -49,7 +49,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: backend
-          image: ${{ steps.login-ecr.outputs.registry }}/purpose-finder-repository-dev:${{ github.sha }}
+          image: ${{ steps.login-ecr.outputs.registry }}/backend:${{ github.sha }}
  
       - name: Deploy to Amazon ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
