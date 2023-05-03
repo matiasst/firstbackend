@@ -1,39 +1,73 @@
-name: Deploy to ECR
-
+name: Deploy to ECS Dev
 on:
- 
   push:
-    branches: main
-
+    branches:
+      - main
 jobs:
-  
-  build:
-    
-    name: Build Image
+  deploy:
+    name: Deploy to ECS Dev
     runs-on: ubuntu-latest
-
-   
     steps:
-
-    - name: Check out code
-      uses: actions/checkout@v2
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: 'eu-west-2'
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-
-    - name: Build, tag, and push image to Amazon ECR
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: docker_nodejs_demo
-        IMAGE_TAG: nodejs_demo_image
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - name: Checkout
+        uses: actions/checkout@v2
+ 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+ 
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+ 
+      - name: Docker build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: backend
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
+         
+      - name: Push to ECR
+        env:
+           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+           ECR_REPOSITORY: backend
+           IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+ 
+      - name: Download task def
+        id: download-task
+        run: |
+          aws ecs describe-task-definition --task-definition backend --query taskDefinition > task-definition.json
+ 
+      - name: Render Amazon ECS task definition for container
+        id: render-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: backend
+          image: ${{ steps.login-ecr.outputs.registry }}/purpose-finder-repository-dev:${{ github.sha }}
+ 
+      - name: Deploy to Amazon ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-container.outputs.task-definition }}
+          service: BackernService
+          cluster: DevCluster
+          wait-for-service-stability: false
+ 
+      ### Leave this here if needed in the future. The first block needs to be inserted at download-task-definition step.
+      ### The second block is the last step. They are used to deregister task definitions.
+ 
+      # current=$(cat task-definition.json | jq .revision)
+      # subsctract=2
+      # new=$(expr $current - $subsctract)
+      # echo "::set-output name=revision::$new"
+ 
+      # - name: De-register (current -2) task-definition
+      #   run: |
+      #     aws ecs deregister-task-definition \
+      #       --task-definition task-definition-dev:${{ steps.download-task.outputs.revision }}
