@@ -101,7 +101,7 @@ app.delete('/users/:id', async (req, res) => {
   }
 });
 
-app.listen(443, () => {
+app.listen(80, () => {
   console.log(`The server has started on port: 80`);
   console.log('I am logging amigo!');
 });
