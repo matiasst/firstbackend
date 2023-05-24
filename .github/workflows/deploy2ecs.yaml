@@ -71,3 +71,4 @@ jobs:
       #   run: |
       #     aws ecs deregister-task-definition \
       #       --task-definition task-definition-dev:${{ steps.download-task.outputs.revision }}
+      
