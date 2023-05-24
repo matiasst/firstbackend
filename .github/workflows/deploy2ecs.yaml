@@ -55,7 +55,7 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.render-container.outputs.task-definition }}
-          service: service-prod
+          service: api-service-prod
           cluster: cluster-prod
           wait-for-service-stability: false
  
